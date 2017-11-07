@@ -9,11 +9,12 @@ Created on Mon Nov 06 18:10:01 2017
 import Queue
 import numpy as np
 import sounddevice as sd
-import pygame
+
 from pygame.locals import *
 from scipy import signal
 import matplotlib.pyplot as plt
 plt.rcParams['agg.path.chunksize'] = 10000
+from pynput.keyboard import Key, Listener
 
 
 
@@ -38,15 +39,12 @@ def thermoacousticpy(rec_durn = 3):
 
     trigger_freq = 2.0*10**3
     trigger_signal = np.float32( np.sin(2*np.pi*t*trigger_freq) )
-
     empty_signal = np.float32(np.zeros(sync_signal.size))
     only_sync = np.column_stack((empty_signal,sync_signal))
     trig_and_sync = np.column_stack((trigger_signal,sync_signal))
 
     S = sd.Stream(samplerate=fs,blocksize=sync_signal.size,channels=(2,2))
 
-
-    pygame.init()
 
 
     start_time = np.copy(S.time)
@@ -60,40 +58,33 @@ def thermoacousticpy(rec_durn = 3):
 
     recording = False
 
+    kb_input = Listener(on_press=on_press, on_release=on_release)
+
+    kb_input.start()
+
     kb_event = 0
 
-    while rec_time < end_time:
+    try:
 
-        for event in pygame.event.get():
-
-            if event.type() == KEYDOWN :
-                kb_event += 1
-                print('recording...')
-                recording = True
-
-                if kb_event == 2:
-                    print('stopping recording...')
-                    recording = False
-                    kb_event = 0
-
-        # if keyboard hit then enter recording state
-        # kb_event += 1
-
-        # if keyboard hit again then revert to no recording
+        while rec_time < end_time:
 
 
-
-        if not recording:
-            S.write(only_sync)
-
-
-
-        if recording:
+            # if keyboard hit then enter recording state
+            # kb_event += 1
+            q.put(S.read(trig_and_sync.shape[0]))
             S.write(trig_and_sync)
-            q.put (S.read(sync_signal.size))
 
-        rec_time = S.time
 
+            # if keyboard hit again then revert to no recording
+            rec_time = S.time
+
+        kb_input.stop()
+
+    except :
+
+        print('Error encountered ..exiting ')
+
+        kb_input.stop()
 
 
     S.stop()
@@ -103,10 +94,24 @@ def thermoacousticpy(rec_durn = 3):
     rec = np.concatenate(q_contents)
 
 
+
     return(fs,rec)
 
 
 
+def on_press(key):
+    if key is not None:
+        print('button pressed - recording')
+
+    else:
+        print('no button pressed')
+        #S.write(only_sync)
+
+    pass
+
+def on_release(key):
+
+        pass
 
 
 
