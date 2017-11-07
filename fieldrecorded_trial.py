@@ -18,104 +18,118 @@ from pynput.keyboard import Key, Listener
 
 
 
+class fieldrecorder():
+
+    def __init__(self,rec_durn):
+        self.rec_durn = rec_durn
+        self.recording = 0
 
 
 
 
-def thermoacousticpy(rec_durn = 3):
-    '''
+    def thermoacousticpy(self):
+        '''
 
-    '''
+        '''
 
-    fs = 192000
-    sync_freq = 25
-    one_cycledurn = 1.0/sync_freq
-    num_cycles = 1
-    sig_durn = num_cycles*one_cycledurn
-    t = np.linspace(0,sig_durn,int(fs*sig_durn))
-    sine_fn = 2*np.pi*sync_freq*t + np.pi
+        fs = 192000
+        sync_freq = 25
+        one_cycledurn = 1.0/sync_freq
+        num_cycles = 1
+        sig_durn = num_cycles*one_cycledurn
+        t = np.linspace(0,sig_durn,int(fs*sig_durn))
+        sine_fn = 2*np.pi*sync_freq*t + np.pi
 
-    sync_signal = np.float32( signal.square(sine_fn,0.5) )
+        sync_signal = np.float32( signal.square(sine_fn,0.5) )
 
-    trigger_freq = 2.0*10**3
-    trigger_signal = np.float32( np.sin(2*np.pi*t*trigger_freq) )
-    empty_signal = np.float32(np.zeros(sync_signal.size))
-    only_sync = np.column_stack((empty_signal,sync_signal))
-    trig_and_sync = np.column_stack((trigger_signal,sync_signal))
+        trigger_freq = 2.0*10**3
+        trigger_signal = np.float32( np.sin(2*np.pi*t*trigger_freq) )
+        empty_signal = np.float32(np.zeros(sync_signal.size))
+        only_sync = np.column_stack((empty_signal,sync_signal))
+        trig_and_sync = np.column_stack((trigger_signal,sync_signal))
 
-    S = sd.Stream(samplerate=fs,blocksize=sync_signal.size,channels=(2,2))
-
-
-
-    start_time = np.copy(S.time)
-    rec_time = np.copy(S.time)
-    end_time =  start_time + rec_durn
-
-
-    q = Queue.Queue()
-
-    S.start()
-
-    recording = False
-
-    kb_input = Listener(on_press=on_press, on_release=on_release)
-
-    kb_input.start()
-
-    kb_event = 0
-
-    try:
-
-        while rec_time < end_time:
-
-
-            # if keyboard hit then enter recording state
-            # kb_event += 1
-            q.put(S.read(trig_and_sync.shape[0]))
-            S.write(trig_and_sync)
-
-
-            # if keyboard hit again then revert to no recording
-            rec_time = S.time
-
-        kb_input.stop()
-
-    except :
-
-        print('Error encountered ..exiting ')
-
-        kb_input.stop()
-
-
-    S.stop()
-
-    q_contents = [ q.get()[0] for i in range(q.qsize()) ]
-
-    rec = np.concatenate(q_contents)
+        self.S = sd.Stream(samplerate=fs,blocksize=sync_signal.size,channels=(2,2))
 
 
 
-    return(fs,rec)
+        start_time = np.copy(self.S.time)
+        rec_time = np.copy(self.S.time)
+        end_time =  start_time + self.rec_durn
+
+
+        q = Queue.Queue()
+
+        self.S.start()
+
+        recording = False
+
+        kb_input = Listener(on_press=self.on_press)
+
+        kb_input.start()
+
+
+        try:
+
+            while rec_time < end_time:
+
+
+                if self.recording == 1:
+                    q.put(self.S.read(trig_and_sync.shape[0]))
+                    self.S.write(trig_and_sync)
+
+                elif self.recording == 0 :
+                    self.S.write(only_sync)
+
+
+                rec_time = self.S.time
+
+            kb_input.stop()
+
+        except :
+
+            print('Error encountered ..exiting ')
+
+            kb_input.stop()
+
+
+        self.S.stop()
+
+        print(q.qsize())
+
+        q_contents = [ q.get()[0] for i in range(q.qsize()) ]
+
+        rec = np.concatenate(q_contents)
 
 
 
-def on_press(key):
-    if key is not None:
+        return(fs,rec)
+
+
+
+    def on_press(self,key):
+
         print('button pressed - recording')
 
-    else:
-        print('no button pressed')
-        #S.write(only_sync)
+        if self.recording == 0 :
+            return(self.recording = 1)
 
-    pass
+        if self.recording == 1 :
+            return(self.recording == 0)
 
-def on_release(key):
+
+
+        print(self.recording)
 
         pass
 
 
 
+
+
 if __name__ == '__main__':
-    fs,rec = thermoacousticpy(10)
-    plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec);plt.ylim(-1,1)
+    #fs,rec = thermoacousticpy(10)
+    #plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec);plt.ylim(-1,1)
+
+    a = fieldrecorder(10)
+    a.thermoacousticpy()
 
