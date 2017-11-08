@@ -7,14 +7,13 @@ Created on Mon Nov 06 18:10:01 2017
 @author: tbeleyur
 """
 import Queue
+import datetime as dt
 import numpy as np
 import sounddevice as sd
-
-from pygame.locals import *
 from scipy import signal
 import matplotlib.pyplot as plt
 plt.rcParams['agg.path.chunksize'] = 10000
-from pynput.keyboard import Key, Listener
+from pynput.keyboard import  Listener
 
 
 
@@ -22,8 +21,9 @@ class fieldrecorder():
 
     def __init__(self,rec_durn):
         self.rec_durn = rec_durn
-        self.recording = 0
-
+        self.press_count = 0
+        self.recording = False
+        self.sync_freq = 25
 
 
 
@@ -33,24 +33,23 @@ class fieldrecorder():
         '''
 
         fs = 192000
-        sync_freq = 25
-        one_cycledurn = 1.0/sync_freq
+        one_cycledurn = 1.0/self.sync_freq
         num_cycles = 1
         sig_durn = num_cycles*one_cycledurn
         t = np.linspace(0,sig_durn,int(fs*sig_durn))
-        sine_fn = 2*np.pi*sync_freq*t + np.pi
+        sine_fn = 2*np.pi*self.sync_freq*t + np.pi
 
         sync_signal = np.float32( signal.square(sine_fn,0.5) )
+        trigger_freq = 15*10**3
 
-        trigger_freq = 2.0*10**3
-        trigger_signal = np.float32( np.sin(2*np.pi*t*trigger_freq) )
+        # conv to 32 bit so sounddevice can take the signals as inputs
+        trigger_signal = np.float32(np.sin(2*np.pi*t*trigger_freq))
         empty_signal = np.float32(np.zeros(sync_signal.size))
-        only_sync = np.column_stack((empty_signal,sync_signal))
-        trig_and_sync = np.column_stack((trigger_signal,sync_signal))
+
+        only_sync = np.column_stack((empty_signal, sync_signal))
+        trig_and_sync = np.column_stack((trigger_signal, sync_signal))
 
         self.S = sd.Stream(samplerate=fs,blocksize=sync_signal.size,channels=(2,2))
-
-
 
         start_time = np.copy(self.S.time)
         rec_time = np.copy(self.S.time)
@@ -61,25 +60,21 @@ class fieldrecorder():
 
         self.S.start()
 
-        recording = False
-
         kb_input = Listener(on_press=self.on_press)
 
         kb_input.start()
-
 
         try:
 
             while rec_time < end_time:
 
 
-                if self.recording == 1:
+                if self.recording:
                     q.put(self.S.read(trig_and_sync.shape[0]))
                     self.S.write(trig_and_sync)
 
-                elif self.recording == 0 :
+                else :
                     self.S.write(only_sync)
-
 
                 rec_time = self.S.time
 
@@ -94,7 +89,7 @@ class fieldrecorder():
 
         self.S.stop()
 
-        print(q.qsize())
+        print('Queue size is',q.qsize())
 
         q_contents = [ q.get()[0] for i in range(q.qsize()) ]
 
@@ -108,17 +103,33 @@ class fieldrecorder():
 
     def on_press(self,key):
 
-        print('button pressed - recording')
+        print('button pressed')
+        self.press_count += 1
 
-        if self.recording == 0 :
-            return(self.recording = 1)
+        if self.press_count == 1:
+            self.recording = True
+            print('recording started')
 
-        if self.recording == 1 :
-            return(self.recording == 0)
+        elif self.press_count == 2:
+            self.recording = False
+            self.press_count = 0
+            print('recording stopped')
 
+            #   empty q contents into a np array
 
+            # save numpy array as a WAV file
+            # and proceed
 
-        print(self.recording)
+        pass
+
+    def empty_qcontents():
+
+        pass
+
+    def save_qcontents_aswav():
+
+        # if an error in saving occurs - print a statement and make a BIG
+        # error
 
         pass
 
@@ -127,9 +138,9 @@ class fieldrecorder():
 
 
 if __name__ == '__main__':
-    #fs,rec = thermoacousticpy(10)
-    #plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec);plt.ylim(-1,1)
+
 
     a = fieldrecorder(10)
-    a.thermoacousticpy()
+    fs,rec= a.thermoacousticpy()
+    plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec);plt.ylim(-1,1)
 
