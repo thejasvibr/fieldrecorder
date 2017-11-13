@@ -15,6 +15,7 @@ import datetime as dt
 import numpy as np
 import sounddevice as sd
 from scipy import signal
+import wave
 import matplotlib.pyplot as plt
 plt.rcParams['agg.path.chunksize'] = 10000
 from pynput.keyboard import  Listener
@@ -23,13 +24,14 @@ from pynput.keyboard import  Listener
 
 class fieldrecorder():
 
-    def __init__(self,rec_durn,device_name=None,input_output_chs=(2,2)):
+    def __init__(self,rec_durn,device_name=None,input_output_chs=(2,2),target_dir = '~\\Desktop\\',**kwargs):
         self.rec_durn = rec_durn
         self.press_count = 0
         self.recording = False
         self.sync_freq = 25
         self.device_name = device_name
         self.input_output_chs = input_output_chs
+        self.target_dir = target_dir
 
         if self.device_name  is None:
             self.tgt_ind = None
@@ -69,7 +71,7 @@ class fieldrecorder():
         end_time =  start_time + self.rec_durn
 
 
-        q = Queue.Queue()
+        self.q = Queue.Queue()
 
         self.S.start()
 
@@ -83,7 +85,7 @@ class fieldrecorder():
 
 
                 if self.recording:
-                    q.put(self.S.read(self.trig_and_sync.shape[0]))
+                    self.q.put(self.S.read(self.trig_and_sync.shape[0]))
                     self.S.write(self.trig_and_sync)
 
                 else :
@@ -102,21 +104,15 @@ class fieldrecorder():
 
         self.S.stop()
 
-        print('Queue size is',q.qsize())
+        print('Queue size is',self.q.qsize())
 
-        q_contents = [ q.get()[0] for i in range(q.qsize()) ]
-
-        rec = np.concatenate(q_contents)
-
-
-
-        return(fs,rec)
+        return(fs,self.rec)
 
 
 
     def on_press(self,key):
 
-        print('button pressed')
+        print('button pressed....\n')
         self.press_count += 1
 
         if self.press_count == 1:
@@ -128,6 +124,10 @@ class fieldrecorder():
             self.press_count = 0
             print('recording stopped')
 
+            self.empty_qcontentsintolist()
+
+            self.save_qcontents_aswav()
+
             #   empty q contents into a np array
 
             # save numpy array as a WAV file
@@ -135,16 +135,44 @@ class fieldrecorder():
 
         pass
 
-    def empty_qcontents():
+    def empty_qcontentsintolist(self):
+        try:
+            self.q_contents = [ self.q.get()[0] for i in range(self.q.qsize()) ]
+
+        except:
+            raise IOError('Unable to empty queue object contents')
 
         pass
 
-    def save_qcontents_aswav():
+    def save_qcontents_aswav(self):
 
-        # if an error in saving occurs - print a statement and make a BIG
-        # error
+        print('Saving file now...')
+
+        self.rec = np.concatenate(self.q_contents)
+
+        timenow = dt.datetime.now()
+        self.timestamp = timenow.strftime('%Y-%m-%d-%H_%M_%S')
+
+        main_filename = self.target_dir + 'MULTIWAV_' + self.timestamp +'.WAV'
+
+        #        wavfile = wave.open(main_filename,'w')
+        #        wavfile.setnchannels(self.rec.shape[1])
+        #        wavfile.setframerate(fs)
+
 
         pass
+
+
+        try:
+            print('trying to save MOCK !! ')
+
+            #scipy.io.wavfile.write(main_filename,fs,self.rec)
+            print('File saved')
+
+            pass
+
+        except:
+            raise IOError('Could not save file !!')
 
 
     def get_device_indexnumber(self,device_name):
@@ -183,10 +211,15 @@ class fieldrecorder():
 
 
 
+
+
+
+
+
 if __name__ == '__main__':
 
 
-    a = fieldrecorder(150,input_output_chs=(2,2),device_name='USB' )
+    a = fieldrecorder(150,input_output_chs=(4,2),device_name='USB' )
     fs,rec= a.thermoacousticpy()
-    #plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec);plt.ylim(-1,1)
+    plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec);plt.ylim(-1,1)
 
