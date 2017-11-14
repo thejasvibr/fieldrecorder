@@ -178,26 +178,22 @@ class fieldrecorder():
         self.timestamp = timenow.strftime('%Y-%m-%d-%H_%M_%S')
 
         main_filename = 'MULTIWAV_' + self.timestamp +'.WAV'
-        soundfile.write(main_filename,self.rec,fs)
-
-        #        wavfile = wave.open(main_filename,'w')
-        #        wavfile.setnchannels(self.rec.shape[1])
-        #        wavfile.setframerate(fs)
-
-
-        pass
-
 
         try:
-            print('trying to save MOCK !! ')
+            print('trying to save file... ')
 
-            #scipy.io.wavfile.write(main_filename,fs,self.rec)
+            soundfile.write(main_filename,self.rec,fs)
+
             print('File saved')
 
             pass
 
         except:
             raise IOError('Could not save file !!')
+
+
+        pass
+
 
 
     def get_device_indexnumber(self,device_name):
