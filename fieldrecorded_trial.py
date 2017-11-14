@@ -1,21 +1,39 @@
 # -*- coding: utf-8 -*-
 """
-A dongle-free approach to control the thermal cameras and mics !!
+A completely dongle-free approach to control the thermal cameras
+and mics based on the sounddevice library !!
 
-Device control logic based on the AVR script series written by
+Program logic based on the AVR Soundmexpro based scripts written with
 Holger R. Goerlitz
+
+Usage instructions :
+
+Press F5 to run the script start the sync signal playback, you should now have
+camera live feed
+
+    To begin recording press any key
+
+    To stop recording press any key again
+
+    To end the session , either :
+        a) Interrupt with a system exit : CTRL+c (creates a tiny file at the end because of keyboard triggering)
+        b) Press the interrupt button with the mouse (doesn't create an extra file )
+
+
+
 
 
 Created on Mon Nov 06 18:10:01 2017
 
 @author: tbeleyur
 """
+import os
 import Queue
 import datetime as dt
 import numpy as np
 import sounddevice as sd
 from scipy import signal
-import wave
+import soundfile
 import matplotlib.pyplot as plt
 plt.rcParams['agg.path.chunksize'] = 10000
 from pynput.keyboard import  Listener
@@ -38,6 +56,11 @@ class fieldrecorder():
         else:
             self.get_device_indexnumber(self.device_name)
 
+        try:
+            expanded_path = os.path.expanduser(target_dir)
+            os.chdir(expanded_path)
+        except:
+            raise ValueError('Unable to find the target directory: ' + target_dir)
 
 
     def thermoacousticpy(self):
@@ -47,12 +70,13 @@ class fieldrecorder():
 
         fs = 192000
         one_cycledurn = 1.0/self.sync_freq
-        num_cycles = 3
+        num_cycles = 1
         sig_durn = num_cycles*one_cycledurn
         t = np.linspace(0,sig_durn,int(fs*sig_durn))
-        sine_fn = 2*np.pi*self.sync_freq*t + np.pi
+        sine_fn = 2*np.pi*self.sync_freq*t
 
         self.sync_signal = np.float32( signal.square(sine_fn,0.5) )
+
         trigger_freq = 20*10**3
 
         # conv to 32 bit so sounddevice can take the signals as inputs
@@ -82,7 +106,6 @@ class fieldrecorder():
         try:
 
             while rec_time < end_time:
-
 
                 if self.recording:
                     self.q.put(self.S.read(self.trig_and_sync.shape[0]))
@@ -153,7 +176,8 @@ class fieldrecorder():
         timenow = dt.datetime.now()
         self.timestamp = timenow.strftime('%Y-%m-%d-%H_%M_%S')
 
-        main_filename = self.target_dir + 'MULTIWAV_' + self.timestamp +'.WAV'
+        main_filename = 'MULTIWAV_' + self.timestamp +'.WAV'
+        soundfile.write(main_filename,self.rec,fs)
 
         #        wavfile = wave.open(main_filename,'w')
         #        wavfile.setnchannels(self.rec.shape[1])
@@ -219,7 +243,8 @@ class fieldrecorder():
 if __name__ == '__main__':
 
 
-    a = fieldrecorder(150,input_output_chs=(4,2),device_name='USB' )
+    a = fieldrecorder(150,input_output_chs=(4,2),device_name='Fireface USB',target_dir = '~\\Desktop\\test\\' )
     fs,rec= a.thermoacousticpy()
-    plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec);plt.ylim(-1,1)
+    #plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec);plt.ylim(-1,1)
+    plt.plot(rec[:,0])
 
