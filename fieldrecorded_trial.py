@@ -76,6 +76,7 @@ class fieldrecorder():
         sine_fn = 2*np.pi*self.sync_freq*t
 
         self.sync_signal = np.float32( signal.square(sine_fn,0.5) )
+        self.sync_signal *= 0.8
 
         trigger_freq = 20*10**3
 
