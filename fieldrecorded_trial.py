@@ -3,6 +3,9 @@
 A completely dongle-free approach to control the thermal cameras
 and mics based on the sounddevice library !!
 
+The current script is tailored for use in the audio-thermal recording array
+to be used in the field to record bats.
+
 Based on the AVR Soundmexpro based scripts written with
 Holger R. Goerlitz
 
@@ -19,7 +22,16 @@ camera live feed
         a) Interrupt with a system exit : CTRL+c (creates a tiny file at the end because of keyboard triggering)
         b) Press the interrupt button with the mouse (doesn't create an extra file )
 
+The program records N input channels simultaneously and outputs 3 signals when
+triggered for recording:
 
+    channel 1: sync. a square 25 Hz signal . The rising edge causes all Thermalcapture
+                cameras to capture a frame
+    channel 2: trigger. a 20KHz sine wave.
+    channel 3: cross-device sync signal. A copy of the sync signal is played back
+                and split with BNC cables into two parallel signals fed into
+                two Fireface UCs. This allows an estimation of the ADC delay between
+                the devices
 
 
 
@@ -155,11 +167,6 @@ class fieldrecorder():
 
             self.save_qcontents_aswav()
 
-            #   empty q contents into a np array
-
-            # save numpy array as a WAV file
-            # and proceed
-
         pass
 
     def empty_qcontentsintolist(self):
@@ -249,6 +256,6 @@ if __name__ == '__main__':
 
     a = fieldrecorder(1500, input_output_chs= in_out_channels, device_name= dev_name, target_dir= tgt_direcory )
     fs,rec= a.thermoacousticpy()
-    #plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec);plt.ylim(-1,1)
-    plt.plot(rec[:,0]);plt.ylim(-1,1)
+    plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec[:,7]);plt.ylim(-1,1)
+
 
