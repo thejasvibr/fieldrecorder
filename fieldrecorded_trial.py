@@ -72,11 +72,11 @@ class fieldrecorder():
         one_cycledurn = 1.0/self.sync_freq
         num_cycles = 1
         sig_durn = num_cycles*one_cycledurn
-        t = np.linspace(0,sig_durn,int(fs*sig_durn))
+        t = np.linspace(0,sig_durn,int(self.fs*sig_durn))
         sine_fn = 2*np.pi*self.sync_freq*t
 
         self.sync_signal = np.float32( signal.square(sine_fn,0.5) )
-        self.sync_signal *= 0.8
+        self.sync_signal *= 0.25
 
         trigger_freq = 20*10**3
 
@@ -84,11 +84,14 @@ class fieldrecorder():
         self.trigger_signal = np.float32(np.sin(2*np.pi*t*trigger_freq))
         self.empty_signal = np.float32(np.zeros(self.sync_signal.size))
 
-        self.only_sync = np.column_stack((self.sync_signal, self.empty_signal))
-        self.trig_and_sync = np.column_stack((self.sync_signal, self.trigger_signal, ))
+        self.only_sync = np.column_stack((self.sync_signal, self.empty_signal,
+                                          self.empty_signal))
+
+        self.trig_and_sync = np.column_stack((self.sync_signal, self.trigger_signal,
+                                                  self.sync_signal))
 
 
-        self.S = sd.Stream(samplerate=fs,blocksize=self.sync_signal.size,
+        self.S = sd.Stream(samplerate=self.fs,blocksize=self.sync_signal.size,
                            channels=self.input_output_chs,device=self.tgt_ind)
 
         start_time = np.copy(self.S.time)
@@ -130,7 +133,7 @@ class fieldrecorder():
 
         print('Queue size is',self.q.qsize())
 
-        return(fs,self.rec)
+        return(self.fs,self.rec)
 
 
 
@@ -240,12 +243,12 @@ class fieldrecorder():
 if __name__ == '__main__':
 
     dev_name = 'Fireface USB'
-    in_out_channels = (24,2)
+    in_out_channels = (24,3)
     tgt_direcory = '~\\Desktop\\test\\'
 
 
     a = fieldrecorder(1500, input_output_chs= in_out_channels, device_name= dev_name, target_dir= tgt_direcory )
     fs,rec= a.thermoacousticpy()
     #plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec);plt.ylim(-1,1)
-    plt.plot(rec[:,0])
+    plt.plot(rec[:,0]);plt.ylim(-1,1)
 
