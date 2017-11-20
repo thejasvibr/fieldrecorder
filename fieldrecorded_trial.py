@@ -3,7 +3,7 @@
 A completely dongle-free approach to control the thermal cameras
 and mics based on the sounddevice library !!
 
-Program logic based on the AVR Soundmexpro based scripts written with
+Based on the AVR Soundmexpro based scripts written with
 Holger R. Goerlitz
 
 Usage instructions :
@@ -68,7 +68,7 @@ class fieldrecorder():
 
         '''
 
-        fs = 192000
+        self.fs = 192000
         one_cycledurn = 1.0/self.sync_freq
         num_cycles = 1
         sig_durn = num_cycles*one_cycledurn
@@ -182,7 +182,7 @@ class fieldrecorder():
         try:
             print('trying to save file... ')
 
-            soundfile.write(main_filename,self.rec,fs)
+            soundfile.write(main_filename,self.rec,self.fs)
 
             print('File saved')
 
@@ -239,8 +239,12 @@ class fieldrecorder():
 
 if __name__ == '__main__':
 
+    dev_name = 'Fireface USB'
+    in_out_channels = (24,2)
+    tgt_direcory = '~\\Desktop\\test\\'
 
-    a = fieldrecorder(150,input_output_chs=(4,2),device_name='Fireface USB',target_dir = '~\\Desktop\\test\\' )
+
+    a = fieldrecorder(1500, input_output_chs= in_out_channels, device_name= dev_name, target_dir= tgt_direcory )
     fs,rec= a.thermoacousticpy()
     #plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec);plt.ylim(-1,1)
     plt.plot(rec[:,0])
