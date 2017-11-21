@@ -85,7 +85,7 @@ class fieldrecorder():
         num_cycles = 1
         sig_durn = num_cycles*one_cycledurn
         t = np.linspace(0,sig_durn,int(self.fs*sig_durn))
-        sine_fn = 2*np.pi*self.sync_freq*t
+        sine_fn = 2*np.pi*self.sync_freq*t + np.pi
 
         self.sync_signal = np.float32( signal.square(sine_fn,0.5) )
         self.sync_signal *= 0.25
