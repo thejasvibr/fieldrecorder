@@ -12,6 +12,18 @@ from ADC_delay import *
 
 class TestADC_delay(unittest.TestCase):
 
+    def setUp(self):
+
+        fs,self.rec1 = read_wavfile('DEVICE1_2017-11-21-10_44_20.wav')
+        fs,self.rec2 = read_wavfile('DEVICE2_2017-11-21-10_44_20.wav')
+
+
+
+
+
+        #self.25Hztemplate
+
+
     def test_delayestimation(self)  :
         '''
         has to have a test_ otherwise the method won't be run !!
@@ -33,11 +45,7 @@ class TestADC_delay(unittest.TestCase):
         self.current_folder = os.path.abspath(__file__)
 
 
-
-        fs,rec1 = read_wavfile('DEVICE1_2017-11-21-10_44_20.wav')
-        fs,rec2 = read_wavfile('DEVICE2_2017-11-21-10_44_20.wav')
-
-        actual_delay = estimate_delay(rec2,rec1)
+        actual_delay = estimate_delay(self.rec2,self.rec1)
 
         expected_delay = -42
 
@@ -51,8 +59,48 @@ class TestADC_delay(unittest.TestCase):
         '''
         has to have a test_ otherwise the method won't be run !!
         '''
-        # miaow
+
         pass
+
+    def test_detect_firstrisingedge(self):
+
+        fs = 192000
+        sync_freq = 25
+
+        one_cycledurn = 1.0/sync_freq
+        t = np.linspace(0,one_cycledurn,int(fs*one_cycledurn))
+        sine_fn = 2*np.pi*sync_freq*t + np.pi
+
+        sync_signal = np.float32( signal.square(sine_fn,0.5) )
+
+        continuous_sync = np.tile(sync_signal,10)
+        samples_silence = 1000
+        test_signal = np.concatenate((np.zeros(samples_silence),continuous_sync))
+
+        first_peak_notemplate = detect_first_rising_edge(test_signal, fs=192000)
+
+        risingedge_index = t.size/2 + samples_silence
+
+        self.assertEqual(first_peak_notemplate,risingedge_index)
+
+        first_peak_withtemplate = detect_first_rising_edge(test_signal,fs=192000,template=sync_signal)
+
+        self.assertEqual(first_peak_withtemplate,risingedge_index)
+
+
+        # now try with a weird sync signal - it should throw a warning but still
+        # return the correct first rising edge:
+
+        jittered_syncsignal = np.concatenate((test_signal,np.zeros(samples_silence),test_signal))
+        peak1_wjittered  = detect_first_rising_edge(jittered_syncsignal,fs=192000)
+
+        self.assertEqual(peak1_wjittered,risingedge_index)
+
+
+
+
+        pass
+
 
 
 
