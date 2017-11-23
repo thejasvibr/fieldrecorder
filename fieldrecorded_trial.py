@@ -229,7 +229,7 @@ class fieldrecorder():
         self.rec2besaved = self.rec[:,self.save_channels]
 
         timenow = dt.datetime.now()
-        self.timestamp = timenow.strftime('%Y-%m-%d_%H-%M-%S_')
+        self.timestamp = timenow.strftime('%Y-%m-%d_%H-%M-%S')
         self.idnumber =  int(time.mktime(timenow.timetuple())) #the unix time which provides a 10 digit unique identifier
 
         main_filename = 'MULTIWAV_' + self.timestamp+'_'+str(self.idnumber) +'.WAV'
