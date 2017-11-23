@@ -47,6 +47,7 @@ Created on Mon Nov 06 18:10:01 2017
 import os
 import Queue
 import datetime as dt
+import time
 import numpy as np
 import sounddevice as sd
 from scipy import signal
@@ -65,15 +66,17 @@ class fieldrecorder():
         Inputs:
         rec_durn : float. duration of the whole session in seconds
         device_name : string. name of the device as shown by sd.query_devices()
-                    Defaults to None - which will throw an error if there are not at least 3 output channels
+                    Defaults to None - which will throw an error if there are not at
+                    least 3 output channels
 
         input_output_chs: tuple with integers. Number of channels for recording and playback.
 
         target_dir : file path. place where the output WAV files will be saved
 
         **kwargs:
-            exclude_channels: list with integers. These channels will not be saved into the WAV file.
-                              Defaults to the digital channels in the double Fireface UC setup
+            exclude_channels: list with integers. These channels will not be saved
+                              into the WAV file. Defaults to the digital channels
+                              in the double Fireface UC setup
 
 
 
@@ -173,9 +176,9 @@ class fieldrecorder():
 
             kb_input.stop()
 
-        except :
+        except (KeyboardInterrupt, SystemExit):
 
-            print('Error encountered ..exiting ')
+            print('Stopping recording ..exiting ')
 
             kb_input.stop()
 
@@ -226,9 +229,10 @@ class fieldrecorder():
         self.rec2besaved = self.rec[:,self.save_channels]
 
         timenow = dt.datetime.now()
-        self.timestamp = timenow.strftime('%Y-%m-%d-%H_%M_%S')
+        self.timestamp = timenow.strftime('%Y-%m-%d_%H-%M-%S_')
+        self.idnumber =  int(time.mktime(timenow.timetuple())) #the unix time which provides a 10 digit unique identifier
 
-        main_filename = 'MULTIWAV_' + self.timestamp +'.WAV'
+        main_filename = 'MULTIWAV_' + self.timestamp+'_'+str(self.idnumber) +'.WAV'
 
         try:
             print('trying to save file... ')
