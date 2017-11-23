@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 """
+TODO :
+    1) provide an option to exclude the saving of some channels! can use sets
+
+
+
 A completely dongle-free approach to control the thermal cameras
 and mics based on the sounddevice library !!
 
@@ -27,11 +32,11 @@ triggered for recording:
 
     channel 1: sync. a square 25 Hz signal . The rising edge causes all Thermalcapture
                 cameras to capture a frame
-    channel 2: trigger. a 20KHz sine wave.
+    channel 2: trigger. a 20KHz sine wave. when this signal is played the frames
+                captured by the cameras are saved to disk.
     channel 3: cross-device sync signal. A copy of the sync signal is played back
-                and split with BNC cables into two parallel signals fed into
-                two Fireface UCs. This allows an estimation of the ADC delay between
-                the devices
+                through split BNC cables fed into two Fireface UCs. This allows
+                an estimation of the AD conversion delay between the devices
 
 
 
@@ -64,7 +69,7 @@ class fieldrecorder():
         self.target_dir = target_dir
 
         if self.device_name  is None:
-            self.tgt_ind = None
+            self.tgt_ind = [0,2]
         else:
             self.get_device_indexnumber(self.device_name)
 
@@ -73,6 +78,21 @@ class fieldrecorder():
             os.chdir(expanded_path)
         except:
             raise ValueError('Unable to find the target directory: ' + target_dir)
+
+
+        # unless stated specifically exclude the digital input channels
+        # from both Firefaces;
+        #Device 1: 9:12 , Device 2: 21:24
+
+        self.all_recchannels = range(self.input_output_chs[0])
+
+        if 'exclude_channels' not in kwargs:
+            self.exclude_channels = [8,9,10,11,20,21,22,23]
+        else:
+            self.exclude_channels = kwargs['exclude_channels']
+
+        self.save_channels  = list(set(self.all_recchannels) - set(self.exclude_channels))
+
 
 
     def thermoacousticpy(self):
@@ -184,6 +204,8 @@ class fieldrecorder():
 
         self.rec = np.concatenate(self.q_contents)
 
+        self.rec2besaved = self.rec[:,self.save_channels]
+
         timenow = dt.datetime.now()
         self.timestamp = timenow.strftime('%Y-%m-%d-%H_%M_%S')
 
@@ -192,7 +214,7 @@ class fieldrecorder():
         try:
             print('trying to save file... ')
 
-            soundfile.write(main_filename,self.rec,self.fs)
+            soundfile.write(main_filename,self.rec2besaved,self.fs)
 
             print('File saved')
 
@@ -241,12 +263,6 @@ class fieldrecorder():
 
 
 
-
-
-
-
-
-
 if __name__ == '__main__':
 
     dev_name = 'Fireface USB'
@@ -256,6 +272,6 @@ if __name__ == '__main__':
 
     a = fieldrecorder(1500, input_output_chs= in_out_channels, device_name= dev_name, target_dir= tgt_direcory )
     fs,rec= a.thermoacousticpy()
-    plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec[:,7]);plt.ylim(-1,1)
+    #plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec[:,7]);plt.ylim(-1,1)
 
 
