@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 """
+TODO:
+ > write function to save each file in the desired format
+ > complete function which cuts out time-aligned samples across AD converters
+
 A bunch of functions which deal and compensate for the AD conversion delay
 across the two Fireface UCs we're using
 
@@ -37,7 +41,7 @@ def select_channels(channel_list,multichannel_rec):
 
     return(subset_channels)
 
-def estimate_delay(chB,chA,samples_to_use=10**3):
+def estimate_delay(chB,chA,samples_to_use=10**5):
     '''
     estimates delay by looking at the peak in the cross-correlation function
     The function provides the delay in samples wrt channel A.
@@ -61,9 +65,28 @@ def estimate_delay(chB,chA,samples_to_use=10**3):
     return(delay)
 
 
-def cut_out_same_sections():
+def cut_out_same_sections(channel,start_index,stop_index):
+    '''
+    Inputs:
+        channel: array-like. one channel recording
+        start_index,stop_index: integers.
+    Outputs:
+        trimmed_channel: array-like. output channel recording cut-out according to start and stop indices
+    '''
 
-    pass
+    cut_points = (start_index,stop_index)
+
+    if not all([ each<0for each in cut_points]):
+        raise ValueError('The start and stop indices need to be >0')
+    if not stop_index>start_index:
+        raise ValueError('The stop index must be greater than the start index')
+
+
+    trimmed_channel = channel[start_index:stop_index]
+
+
+    return(trimmed_channel)
+
 
 def detect_first_rising_edge(recording,fs=192000,**kwargs):
     '''
@@ -97,7 +120,7 @@ def detect_first_rising_edge(recording,fs=192000,**kwargs):
         print('no fps arguments found in kwargs, using 25 fps')
         mindist_pk2pk = (1.0/25)*fs -1
     else:
-        print('fps argument found in kwargs, using '+str(kwargs[fps])+' Hz fps')
+        print('fps argument found in kwargs, using '+str(kwargs['fps'])+' Hz fps')
         mindist_pk2pk = (1.0/kwargs['fps'])*fs -1
 
     conv_sig = np.convolve(template[::-1],recording,'same')
@@ -140,6 +163,46 @@ def create_default_template(sync_freq,fs=192000):
     return(template)
 
 
+def align_channels(multichannel_rec, channel2device,cut_points={'ADC1':0,'ADC2':0}):
+    '''
+    Cuts out the same portion of recording to compensate for AD conversion.
+
+    Inputs:
+        multichannel_rec : nsamples x Nchannels np,array. contains the multichannel recording from both devices
+        channel2device: dictionary. Maps which channels belong to which device. Each entry has a
+                         array like object with the channel indices in it.
+        cut_points: dictionary. Maps the start of the cutting point. Defaults to zero
+                    for channels of both AD converters.
+    '''
+
+    if not len(multichannel_rec)==len(cut_points):
+        raise ValueError('The number of ADC devices in the channel2device and the cut_points dictionary do not match')
+
+
+    for each_device in channel2device:
+
+        pass
+
+
+
+
+
+    pass
+
+
+def save_as_singlewavs(multichannel_rec,name_origfile,startname):
+    '''
+
+
+
+    '''
+
+
+
+
+    pass
+
+
 check_allare_int = lambda some_list: all(isinstance(item, int) for item in some_list)
 # thanks Dragan Chupacabric : https://stackoverflow.com/questions/6009589/how-to-test-if-every-item-in-a-list-of-type-int
 check_allare_np = lambda some_list: all(isinstance(item, np.ndarray) for item in some_list)
@@ -147,21 +210,22 @@ check_allare_np = lambda some_list: all(isinstance(item, np.ndarray) for item in
 if __name__ == '__main__':
     r1,r2 = read_wavfile('DEVICE1_2017-11-21-10_44_20.wav'), read_wavfile('DEVICE2_2017-11-21-10_44_20.wav')
     fs,rec1 = r1
+    fs,rec2 = r2
 
-    sync_freq = 25
+    # check if the cross correlation and rising edge give similar results :
 
-    one_cycledurn = 1.0/sync_freq
-    t = np.linspace(0,one_cycledurn,int(fs*one_cycledurn))
-    sine_fn = 2*np.pi*sync_freq*t + np.pi
+    delay_r1r2 = estimate_delay(rec2,rec1,10**5)
 
-    sync_signal = np.float32( signal.square(sine_fn,0.5) )
+    risingedge_1 = detect_first_rising_edge(rec1)
+    risingedge_2 = detect_first_rising_edge(rec2)
+    delta_risingedge = risingedge_1 - risingedge_2
 
-    conv_r1 = np.convolve(sync_signal[::-1],rec1,'same')
-    plt.plot(conv_r1/np.max(conv_r1))
-    plt.plot(rec1)
+    print('cross correlation delay estimate: ', delay_r1r2,'rising edge differences: ',delta_risingedge)
 
-    pks = peakutils.indexes(conv_r1/np.max(conv_r1),thres=0.6,min_dist=t.size-1)
-    plt.plot(pks,rec1[pks],'r*')
+
+
+
+
 
 
 
