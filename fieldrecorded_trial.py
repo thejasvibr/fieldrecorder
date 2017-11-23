@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 TODO :
-    1) provide an option to exclude the saving of some channels! can use sets
-
-
+    > fix the default output channel number
 
 A completely dongle-free approach to control the thermal cameras
 and mics based on the sounddevice library !!
@@ -39,6 +37,8 @@ triggered for recording:
                 an estimation of the AD conversion delay between the devices
 
 
+By default, even though data is being collected from all channels, only some channels
+are saved into the wav file.
 
 Created on Mon Nov 06 18:10:01 2017
 
@@ -60,6 +60,24 @@ from pynput.keyboard import  Listener
 class fieldrecorder():
 
     def __init__(self,rec_durn,device_name=None,input_output_chs=(2,2),target_dir = '~\\Desktop\\',**kwargs):
+        '''
+
+        Inputs:
+        rec_durn : float. duration of the whole session in seconds
+        device_name : string. name of the device as shown by sd.query_devices()
+                    Defaults to None - which will throw an error if there are not at least 3 output channels
+
+        input_output_chs: tuple with integers. Number of channels for recording and playback.
+
+        target_dir : file path. place where the output WAV files will be saved
+
+        **kwargs:
+            exclude_channels: list with integers. These channels will not be saved into the WAV file.
+                              Defaults to the digital channels in the double Fireface UC setup
+
+
+
+        '''
         self.rec_durn = rec_durn
         self.press_count = 0
         self.recording = False
@@ -69,7 +87,7 @@ class fieldrecorder():
         self.target_dir = target_dir
 
         if self.device_name  is None:
-            self.tgt_ind = [0,2]
+            self.tgt_ind = None
         else:
             self.get_device_indexnumber(self.device_name)
 
@@ -97,6 +115,7 @@ class fieldrecorder():
 
     def thermoacousticpy(self):
         '''
+        Performs the synchronised recording of thermal cameras and audio.
 
         '''
 
