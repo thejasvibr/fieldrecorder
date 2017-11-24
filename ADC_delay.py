@@ -169,25 +169,39 @@ def align_channels(multichannel_rec, channel2device,cut_points={'ADC1':0,'ADC2':
 
     Inputs:
         multichannel_rec : nsamples x Nchannels np,array. contains the multichannel recording from both devices
+
         channel2device: dictionary. Maps which channels belong to which device. Each entry has a
                          array like object with the channel indices in it.
-        cut_points: dictionary. Maps the start of the cutting point. Defaults to zero
-                    for channels of both AD converters.
+
+        cut_points: dictionary. The sample index of the sync signals first rising edge. Defaults to zero delay across
+                                channels of both AD converters. This is index from which the 'cut' will be made to
+                                create a time-aligned recording across all ADC devices
+    Outputs:
+        rec_timealigned: n_alignedsamples x Nchannels np.array. The time-aligned
+                             multi-channel recording
+
     '''
 
-    if not len(multichannel_rec)==len(cut_points):
+    if not len(channel2device)==len(cut_points):
         raise ValueError('The number of ADC devices in the channel2device and the cut_points dictionary do not match')
 
+    # check which ADC device is the slowest one, as it will have the overall
+    # smallest number of samples recorded
+
+    last_index = np.max([ cut_points[device] for device in cut_points])
+
+    total_samples = multichannel_rec.shape[0] - last_index
+
+    rec_timealigned = np.zeros((total_samples,multichannel_rec.shape[1]))
 
     for each_device in channel2device:
 
-        pass
+        start_index = cut_points[each_device]
+        end_index = start_index + total_samples
+        rec_timealigned[:,channel2device[each_device]] = multichannel_rec[
+                                                        start_index:end_index ,channel2device[each_device]]
 
-
-
-
-
-    pass
+    return(rec_timealigned)
 
 
 def save_as_singlewavs(multichannel_rec,name_origfile,startname):

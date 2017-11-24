@@ -269,7 +269,7 @@ class fieldrecorder():
             raise ValueError('The input device \n' + self.tgt_dev_name+
             '\n could not be found, please look at the list above'+
                              ' for all the recognised devices'+
-                             ' \n Please use sd.query_devices to check the recognised'
+                             ' \n Please use sd.query_devices to check the  recognised'
                              +' devices on this computer')
 
         if sum(self.tgt_dev_bool) > 1 :
