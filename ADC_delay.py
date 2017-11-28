@@ -2,7 +2,7 @@
 """
 TODO:
  > write function to save each file in the desired format
- > complete function which cuts out time-aligned samples across AD converters
+
 
 A bunch of functions which deal and compensate for the AD conversion delay
 across the two Fireface UCs we're using
@@ -11,7 +11,9 @@ Created on Tue Nov 21 11:11:04 2017
 
 @author: tbeleyur
 """
+from __future__ import division
 import os
+import itertools
 import warnings
 from scipy import signal
 import scipy.io.wavfile
@@ -21,6 +23,100 @@ from matplotlib import pyplot as plt
 plt.rcParams['agg.path.chunksize'] = 10000
 
 
+
+
+def timealign_channels(multich_rec,fs=192000,channels2devices={'1':range(12),'2':range(12,24)},syncch2device={'1':7,'2':19},**kwargs):
+    '''
+    Temporally aligns channels recorded from multiple AD converters based on
+    a commonly recorded sync signal from all the devices
+
+    The total number of samples recorded across all devices must be the same !
+
+    Inputs:
+        multich_rec : nsamples x nchannels np.array. the recorded signal from
+                      all devices
+
+        fs : integer. sampling rate of the AD devices in Hertz.
+
+        channesl2devices: dictionary. keys are names of the AD converters and entries
+                          are array-like with the channel indices belonging to each AD
+                          converter.
+
+                          eg. if there was a 16 channel recording across 2 AD converters
+                          with the first 8 channels by provided from AD device 1
+                          and the next 8 by ADC2, then :
+
+                          channels2devices ={ '1':range(8),'2':range(8,16)}
+
+                          Defaults to the experimental settings used by Thejasvi Beleyur
+
+        syncch2device: dictionay. keys are names of the AD converters and entries
+                          are integers indicating the channels used to record the
+                          common sync signal
+
+                          eg.if sync signals were recorded on channel index 7 and 15, then:
+
+                          sync_channels = {'1':7,'2':15}
+
+                          Defaults to the experimental settings used by Thejasvi Beleyur
+        **kwargs:
+
+            template_signal: np.array. the template square wave signal to get the first index that
+                             matches it
+
+            with_sync : Boolean. defaults to False. If True, then returns all the channels
+                        with the time-aligned sync channel too. Otherwise, only the
+                        audio channels are returned
+
+
+    '''
+    num_recch = multich_rec.shape[1]
+    num_synch = len(syncch2device)
+    num_devices = len(channels2devices)
+
+    if not multich_rec.shape[1] == num_recch:
+        raise ValueError('All channels have not been assigned to an ADC device! \n There is a mismatch in the channel dimensions and input channels of channels2devices')
+
+    if not num_synch == num_devices:
+        raise ValueError('Incorrect number of sync channels or devices  have been assigned.')
+
+
+#    check_for_overlaps(channels2devices)
+#    check_for_overlaps(syncch2device)
+
+    # estimate delay between different ADC devices
+
+    sync_chlist = [ch_index for eachdevice,ch_index in syncch2device.items()]
+    sync_channels = select_channels(sync_chlist,multich_rec)
+
+    rec_durn = multich_rec.shape[0]/fs
+
+    if rec_durn < 0.5:
+        samples2use = multich_rec.shape[0] -1
+    else:
+        samples2use = 10**5
+
+    #ref_sync = sync_channels[:,0] # set the first sync
+    #adc_delays = np.apply_along_axis(estimate_delay,0,sync_channels,ref_sync,samples2use)
+    rising_edges = np.apply_along_axis(detect_first_rising_edge,0,sync_channels,fs)
+
+    cutpoints= { devs: rising_edges[index] for index,devs in enumerate(channels2devices)}
+
+    # remove the sync channels and select only the audio channels
+    all_channels = set( range(multich_rec.shape[1]) )
+    audio_chindex = list( all_channels - set(sync_chlist))
+
+    # time align the audio channels
+
+    timealigned_channels = align_channels(multich_rec,channels2devices,cutpoints)
+
+    if 'with_sync' in kwargs and kwargs['with_sync']:
+        return(timealigned_channels)
+
+    else:
+        timealigned_audio  = select_channels(audio_chindex,timealigned_channels)
+
+        return(timealigned_audio)
 
 
 def read_wavfile(fileaddress):
@@ -182,27 +278,30 @@ def align_channels(multichannel_rec, channel2device,cut_points={'ADC1':0,'ADC2':
 
     '''
 
-    if not len(channel2device)==len(cut_points):
-        raise ValueError('The number of ADC devices in the channel2device and the cut_points dictionary do not match')
+    commonstart_ch = {}
+    #cut out the inequal multichannel snippets from the common sample onwards
+    for each_device,cutpoint in cut_points.items():
+        commonstart_ch[each_device] = multichannel_rec[cutpoint:,channel2device[each_device]]
 
-    # check which ADC device is the slowest one, as it will have the overall
-    # smallest number of samples recorded
 
-    last_index = np.max([ cut_points[device] for device in cut_points])
+    # now look at which rising edge occurs the latest, which device has the lowest samples recorded :
+    numsamples = []
+    for each_device,common_ch in commonstart_ch.items():
+        numsamples.append(common_ch.shape[0])
 
-    total_samples = multichannel_rec.shape[0] - last_index
+    lowest_samples = min(numsamples)
 
-    rec_timealigned = np.zeros((total_samples,multichannel_rec.shape[1]))
+    # and now make all the channels of the same size + column stack:
+    nchannels = multichannel_rec.shape[1]
+    rec_timealigned = np.zeros((lowest_samples,nchannels))
 
-    for each_device in channel2device:
+    for each_device,common_ch in commonstart_ch.items():
 
-        start_index = cut_points[each_device]
-        end_index = start_index + total_samples
-        rec_timealigned[:,channel2device[each_device]] = multichannel_rec[
-                                                        start_index:end_index ,channel2device[each_device]]
+        device_channels = channel2device[each_device]
+        rec_timealigned[:,device_channels] = common_ch[:lowest_samples,:]
+
 
     return(rec_timealigned)
-
 
 def save_as_singlewavs(multichannel_rec,name_origfile,startname):
     '''
@@ -217,31 +316,73 @@ def save_as_singlewavs(multichannel_rec,name_origfile,startname):
     pass
 
 
+def check_for_overlaps(channels2something):
+    '''
+    checks if there are overlaps/double entries of channels between the values
+    given across devices and raises an Error if there are any.
+
+    If there are no overlaps - returns False - to indicate NO overlaps
+    '''
+
+    try:
+        all_channels = [ channels  for each_device,channels in channels2something.items()]
+
+        if check_allare_int(all_channels):
+            all_channelsset = [  set([each_channel]) for each_channel in all_channels  ]
+        else:
+            all_channelsset = [set(every_channel) for every_channel in all_channels]
+
+    except:
+
+        raise TypeError('Unable to make a set out of the channels2device dictionary, please check the input channels')
+
+    all_combins = list(itertools.combinations( range(len(all_channelsset)),2))
+
+    for pair in all_combins:
+        device1 = pair[0]
+        device2 = pair[1]
+        common_channels  = all_channelsset[device1].intersection( all_channelsset[device2])
+
+        if len(common_channels) >0:
+            raise ValueError('Some channels may have been specified twice across different devices!')
+
+    return(False)
+
+
+
+
+
 check_allare_int = lambda some_list: all(isinstance(item, int) for item in some_list)
 # thanks Dragan Chupacabric : https://stackoverflow.com/questions/6009589/how-to-test-if-every-item-in-a-list-of-type-int
 check_allare_np = lambda some_list: all(isinstance(item, np.ndarray) for item in some_list)
 
 if __name__ == '__main__':
-    r1,r2 = read_wavfile('DEVICE1_2017-11-21-10_44_20.wav'), read_wavfile('DEVICE2_2017-11-21-10_44_20.wav')
-    fs,rec1 = r1
-    fs,rec2 = r2
 
-    # check if the cross correlation and rising edge give similar results :
+    mock_rec = np.zeros((1,192000*16)).reshape((-1,16))
 
-    delay_r1r2 = estimate_delay(rec2,rec1,10**5)
+    t  = np.linspace(0,1,192000)
+    sine_t = np.sin(2*np.pi*t*25 - np.pi)
+    sync = signal.square(sine_t)
 
-    risingedge_1 = detect_first_rising_edge(rec1)
-    risingedge_2 = detect_first_rising_edge(rec2)
-    delta_risingedge = risingedge_1 - risingedge_2
-
-    print('cross correlation delay estimate: ', delay_r1r2,'rising edge differences: ',delta_risingedge)
+    pbk_delay = 2000
+    adc_delay = 100
 
 
+    mock_rec[:pbk_delay,7] = 0
+    mock_rec[pbk_delay:,7] = sync[:-pbk_delay]
+    mock_rec[:pbk_delay+adc_delay,15] = 0
+    mock_rec[pbk_delay+adc_delay:,15] = sync[:-(pbk_delay+adc_delay)]
+
+    mock_rec[:,9] = mock_rec[:,7]
+    mock_rec[:,12] = mock_rec[:,15]
 
 
-
-
-
-
-
-
+    ch2devs = {'1':range(8),'2':range(8,16)}
+    sync2devs = {'1':7,'2':15}
+    detect_first_rising_edge(mock_rec[:,7])
+    # timealign_channels(mock_rec,192000, ch2devs,sync2devs,with_template=False)
+    cutpoints = {device: detect_first_rising_edge(mock_rec[:,channel])  for device,channel in sync2devs.items()}
+    ta_channels  = align_channels(mock_rec,ch2devs,cutpoints)
+    plt.cla()
+    #plt.plot(ta_channels,alpha=0.3)
+    plt.plot(ta_channels[:,7]);plt.plot(ta_channels[:,15])
