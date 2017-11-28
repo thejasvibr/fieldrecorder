@@ -73,6 +73,8 @@ class TestADC_delay(unittest.TestCase):
 
     def test_detect_firstrisingedge(self):
 
+        print('test_detect_firstrisingedge \n')
+
         fs = 192000
         sync_freq = 25
 
@@ -109,6 +111,8 @@ class TestADC_delay(unittest.TestCase):
 
     def test_alignchannels(self):
 
+        print('test_alignchannels \n')
+
         #align_channels(multichannel_rec, channel2device,cut_points={'ADC1':0,'ADC2':0})
         print('test_alignchannels')
 
@@ -132,6 +136,8 @@ class TestADC_delay(unittest.TestCase):
         check how all of the functions behave together and see if it throws any
         errors
         '''
+
+        print('test_timealign_channels \n')
 
         fs = 192000
 
@@ -169,7 +175,7 @@ class TestADC_delay(unittest.TestCase):
         (without the sync signal) are returned in the expected order
 
         '''
-        print('test_ifconcatenationworks')
+        print('\n test_ifconcatenationworks')
         fs = 192000
         nchannels = 16
         unique_channel_rec  = np.zeros((fs,nchannels))

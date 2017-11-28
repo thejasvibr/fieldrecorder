@@ -12,17 +12,15 @@ Created on Tue Nov 21 11:11:04 2017
 @author: tbeleyur
 """
 from __future__ import division
-import os
-import itertools
+import itertools,os
 import warnings
 from scipy import signal
 import scipy.io.wavfile
 import numpy as np
 import peakutils
+import datetime,time
 from matplotlib import pyplot as plt
 plt.rcParams['agg.path.chunksize'] = 10000
-
-
 
 
 def timealign_channels(multich_rec,fs=192000,channels2devices={'1':range(12),'2':range(12,24)},syncch2device={'1':7,'2':19},**kwargs):
@@ -89,15 +87,13 @@ def timealign_channels(multich_rec,fs=192000,channels2devices={'1':range(12),'2'
     sync_chlist = [ch_index for eachdevice,ch_index in syncch2device.items()]
     sync_channels = select_channels(sync_chlist,multich_rec)
 
-    rec_durn = multich_rec.shape[0]/fs
+#    rec_durn = multich_rec.shape[0]/fs
 
-    if rec_durn < 0.5:
-        samples2use = multich_rec.shape[0] -1
-    else:
-        samples2use = 10**5
+#    if rec_durn < 0.5:
+#        samples2use = multich_rec.shape[0] -1
+#    else:
+#        samples2use = 10**5
 
-    #ref_sync = sync_channels[:,0] # set the first sync
-    #adc_delays = np.apply_along_axis(estimate_delay,0,sync_channels,ref_sync,samples2use)
     rising_edges = np.apply_along_axis(detect_first_rising_edge,0,sync_channels,fs)
 
     cutpoints= { devs: rising_edges[index] for index,devs in enumerate(channels2devices)}
@@ -120,10 +116,38 @@ def timealign_channels(multich_rec,fs=192000,channels2devices={'1':range(12),'2'
 
 
 def read_wavfile(fileaddress):
+    '''
+    read wav file and return a np array with -1 <= values <= 1
+    '''
 
     fs,rec = scipy.io.wavfile.read(fileaddress)
 
-    return(fs,rec)
+    if not np.all(rec<=1) & np.all(rec>=-1):
+
+
+        normalise_values = {'int16':lambda X : X/(-1 + 2.0**15) ,
+                            'int32':lambda X : X/(-1 + 2.0**31),
+                           }
+
+        if rec.dtype in ['int16','int32']:
+            norm_rec = np.float32(normalise_values[str(rec.dtype)](rec))
+
+            return(fs,norm_rec)
+
+        else:
+            raise ValueError('dtype of this wav file cannot be converted into \
+            -1 to +1 bounded np array - please try another function to \
+            load this wav file')
+    else :
+        return(fs,rec)
+
+def write_wavfile(input_nparray,fs,intended_name):
+
+    if not input_nparray.dtype == 'float32':
+        input_f32 = np.float32(input_nparray)
+        scipy.io.wavfile.write(intended_name,fs,input_f32)
+
+    pass
 
 
 def select_channels(channel_list,multichannel_rec):
@@ -186,8 +210,11 @@ def cut_out_same_sections(channel,start_index,stop_index):
 
 def detect_first_rising_edge(recording,fs=192000,**kwargs):
     '''
-    Detects the first rising edge of a square wave signal
-    and returns its index.
+    Convolves the recording with an input template signal
+    . The first peak arising from this convolved signal is output.
+
+    When no template is given, a square wave signal
+    with 50% duty cycle and 25 Hz frequency is assumed.
 
     Inputs:
         recording: np.array with signal
@@ -303,15 +330,49 @@ def align_channels(multichannel_rec, channel2device,cut_points={'ADC1':0,'ADC2':
 
     return(rec_timealigned)
 
-def save_as_singlewavs(multichannel_rec,name_origfile,startname):
+def save_as_singlewav_timestamped(multichannel_rec, fs, file_start='Mic',**kwargs):
+    '''
+    receives an nsample x Nchannel array and saves all of them with the
+    a progressive set of names
+
+    The Default is to save each channel as single WAV files with the following
+    pattern:
+
+    MicNN_YYYY-MM-DD_HH-mm-SS_NNNNNNN.WAV (TOADSUITE FORMAT)
+
+    Inputs:
+
+    multichannel_rec : nsamples x Nchannels numpy array.
+    file_start : string. the common string at the beginning of all channels.
+                Defaults to 'Mic'
+
+    **kwargs:
+    file_timestamp : string. the common timestamp to be appended to all separate wav files.
+                    Defaults to the current time stamp with the
+
     '''
 
+    if not 'file_timestamp' in kwargs.keys():
+        time_stamp = datetime.datetime.now()
+        fmtd_timestamp = time_stamp.strftime('%Y-%m-%d_%H-%M-%S')
+        unix_timestamp = int(time.mktime(time_stamp.timetuple()))
+        saved_timestamp = str(fmtd_timestamp)+'_'+str(unix_timestamp)
+    else:
+        saved_timestamp = kwargs['file_timestamp']
+
+    if  ('.WAV' in saved_timestamp) or ('.wav' in saved_timestamp):
+        end_format = ''
+    else:
+        end_format = '.WAV'
 
 
-    '''
+    for each_column in range(multichannel_rec.shape[1]):
+        filename_start = file_start
+        mic_index = '%0.02d'%each_column
+        filename_end = saved_timestamp
+        saved_filename = filename_start+ mic_index +'_'+ filename_end + end_format
 
-
-
+        write_wavfile(multichannel_rec[:,each_column],fs,saved_filename)
 
     pass
 
@@ -349,40 +410,16 @@ def check_for_overlaps(channels2something):
     return(False)
 
 
-
-
-
 check_allare_int = lambda some_list: all(isinstance(item, int) for item in some_list)
 # thanks Dragan Chupacabric : https://stackoverflow.com/questions/6009589/how-to-test-if-every-item-in-a-list-of-type-int
 check_allare_np = lambda some_list: all(isinstance(item, np.ndarray) for item in some_list)
 
 if __name__ == '__main__':
+    os.chdir('C:\\Users\\tbeleyur\\Desktop\\test\\')
+    fs,rec = read_wavfile('MULTIWAV_2017-11-28_15-42-03_1511880123.WAV')
+    ch2dev = {'1':range(8),'2':range(8,16)}
+    sync2dev = {'1':7,'2':15}
+    rec_taligned = timealign_channels(rec,fs=192000,channels2devices=ch2dev,syncch2device=sync2dev)
 
-    mock_rec = np.zeros((1,192000*16)).reshape((-1,16))
+    save_as_singlewav_timestamped(rec_taligned,fs,file_start='Mic',file_timestamp='2017-11-28_15-42-03_1511880123.WAV')
 
-    t  = np.linspace(0,1,192000)
-    sine_t = np.sin(2*np.pi*t*25 - np.pi)
-    sync = signal.square(sine_t)
-
-    pbk_delay = 2000
-    adc_delay = 100
-
-
-    mock_rec[:pbk_delay,7] = 0
-    mock_rec[pbk_delay:,7] = sync[:-pbk_delay]
-    mock_rec[:pbk_delay+adc_delay,15] = 0
-    mock_rec[pbk_delay+adc_delay:,15] = sync[:-(pbk_delay+adc_delay)]
-
-    mock_rec[:,9] = mock_rec[:,7]
-    mock_rec[:,12] = mock_rec[:,15]
-
-
-    ch2devs = {'1':range(8),'2':range(8,16)}
-    sync2devs = {'1':7,'2':15}
-    detect_first_rising_edge(mock_rec[:,7])
-    # timealign_channels(mock_rec,192000, ch2devs,sync2devs,with_template=False)
-    cutpoints = {device: detect_first_rising_edge(mock_rec[:,channel])  for device,channel in sync2devs.items()}
-    ta_channels  = align_channels(mock_rec,ch2devs,cutpoints)
-    plt.cla()
-    #plt.plot(ta_channels,alpha=0.3)
-    plt.plot(ta_channels[:,7]);plt.plot(ta_channels[:,15])

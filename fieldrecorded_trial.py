@@ -2,6 +2,7 @@
 """
 TODO :
     > fix the default output channel number
+    > SAVE ALL FILES AS FLOAT BY DEFAULT !!
 
 A completely dongle-free approach to control the thermal cameras
 and mics based on the sounddevice library !!
