@@ -66,6 +66,13 @@ def timealign_channels(multich_rec,fs=192000,channels2devices={'1':range(12),'2'
                         with the time-aligned sync channel too. Otherwise, only the
                         audio channels are returned
 
+    Returns :
+
+        timealigned_audio :  adjusted_nsamples x nchannels (or less channels).
+                            The audio recording with time adjustment in
+                            AD sampling.
+
+
 
     '''
     num_recch = multich_rec.shape[1]
