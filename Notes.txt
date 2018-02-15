@@ -1,0 +1,9 @@
+
+2017-11-20_16:26
+
+Verified as of commit 3edd0.. : The sync signal output from channel 1 and the cross-device sync signal are both 100 % synchronised. 
+
+TO DO : write script which :
+	> compares the cross-device signal and estimates delay
+	> cuts out the channels accordingly and saves them all into separate files 
+	> upsamples them all to 500 KHz
