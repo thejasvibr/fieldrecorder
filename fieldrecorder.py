@@ -45,7 +45,7 @@ Created on Mon Nov 06 18:10:01 2017
 
  Version 0.0.0 ( semantic versioning number)
 
-@author: tbeleyur
+@author: Thejasvi Beleyur
 """
 import os
 import Queue
