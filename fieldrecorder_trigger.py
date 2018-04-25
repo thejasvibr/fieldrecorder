@@ -61,7 +61,7 @@ from pynput.keyboard import  Listener
 
 
 
-class fieldrecorder():
+class fieldrecorder_trigger():
 
     def __init__(self,rec_durn,device_name=None,input_output_chs=(2,2),target_dir = '~\\Desktop\\',**kwargs):
         '''
@@ -80,8 +80,17 @@ class fieldrecorder():
             exclude_channels: list with integers. These channels will not be saved
                               into the WAV file. Defaults to the digital channels
                               in the double Fireface UC setup
-
-
+            
+            rec_bout : integer. Number of seconds each recording bout should be 
+                       Defaults to 10 seconds.
+            
+            trigger_level : integer <=0. The dB rms for the level at which the recordings
+                        get triggered.
+            monitor_channels : array like with integers. Channel indices that will be 
+                               used for monitoring
+            
+            bandpass_freqs : tuple. Highpass and lowpass frequencies for the trigger calculation
+                       Defaults to the whole frequency spectrum.
 
         '''
         self.rec_durn = rec_durn
@@ -91,6 +100,7 @@ class fieldrecorder():
         self.device_name = device_name
         self.input_output_chs = input_output_chs
         self.target_dir = target_dir
+        self.fs = 192000
 
         if self.device_name  is None:
             self.tgt_ind = None
@@ -110,14 +120,40 @@ class fieldrecorder():
 
         self.all_recchannels = range(self.input_output_chs[0])
 
-        if 'exclude_channels' not in kwargs:
+        if 'exclude_channels' not in kwargs.keys():
             self.exclude_channels = [8,9,10,11,20,21,22,23]
         else:
             self.exclude_channels = kwargs['exclude_channels']
 
         self.save_channels  = list(set(self.all_recchannels) - set(self.exclude_channels))
+        
+        # set the recording bout duration : 
+        if 'rec_bout' not in kwargs.keys():
+            self.rec_bout = 10
+        else : 
+            self.rec_bout = kwargs['rec_bout']
 
-
+        if 'trigger_level' not in kwargs.keys():
+            self.trigger_level = -50 # dB level ref max
+        else:
+            self.trigger_level = kwargs['trigger_level']
+        
+        if 'monitor_channels' not in kwargs.keys():
+            self.monitor_channels = [0,1,2,3]
+        else:
+            self.monitor_channels = kwargs['monitor_channels']
+        
+        if 'bandpass_freqs' in kwargs.keys():
+            self.highpass_freq, self.lowpass_freq = kwargs['bandpass_freqs']
+            nyq_freq = self.fs/2.0
+            self.b, self.a = signal.butter(4, [self.highpass_freq/nyq_freq,
+                                               self.lowpass_freq/nyq_freq],
+                                btype='bandpass')
+            self.bandpass = True
+        else:
+            self.bandpass = False
+            
+            
 
     def thermoacousticpy(self):
         '''
@@ -125,7 +161,6 @@ class fieldrecorder():
 
         '''
 
-        self.fs = 192000
         one_cycledurn = 1.0/self.sync_freq
         num_cycles = 1
         sig_durn = num_cycles*one_cycledurn
@@ -160,59 +195,87 @@ class fieldrecorder():
 
         self.S.start()
 
-        kb_input = Listener(on_press=self.on_press)
-
-        kb_input.start()
-
         try:
 
             while rec_time < end_time:
+                
+                self.mic_inputs = self.S.read(self.trig_and_sync.shape[0])
+                self.ref_channels = self.mic_inputs[0][:,self.monitor_channels]
+                self.ref_channels_bp = self.bandpass_sound(self.ref_channels)
+                self.start_recording = self.check_if_above_level(self.ref_channels_bp)
 
-                if self.recording:
-                    self.q.put(self.S.read(self.trig_and_sync.shape[0]))
-                    self.S.write(self.trig_and_sync)
-
+                if self.start_recording:
+                    print('starting_recording')
+                    self.recbout_start_time = np.copy(self.S.time)
+                    self.recbout_end_time = self.recbout_start_time + self.rec_bout
+                    i = 0
+                    print(self.S.time)
+                    while  self.recbout_end_time >= self.S.time:   
+                        if i != 0:
+                            self.q.put(self.S.read(self.trig_and_sync.shape[0]))
+                        else:
+                            self.q.put(self.mic_inputs)
+                        
+                        self.S.write(self.trig_and_sync)
+                        i += 1
+                        
+                    print(self.S.time)    
+                    self.empty_qcontentsintolist()
+                    self.save_qcontents_aswav()
+                    self.start_recording = False    
                 else :
                     self.S.write(self.only_sync)
 
-                rec_time = self.S.time
-
-            kb_input.stop()
-
         except (KeyboardInterrupt, SystemExit):
-
             print('Stopping recording ..exiting ')
 
-            kb_input.stop()
-
-
         self.S.stop()
-
         print('Queue size is',self.q.qsize())
-
         return(self.fs,self.rec)
 
+    def bandpass_sound(self, rec_buffer):
+        """
+        """
+        if self.bandpass:
+            rec_buffer_bp = np.apply_along_axis(lambda X : signal.lfilter(self.b, self.a, X),
+                                                0, rec_buffer)
+            return(rec_buffer_bp)
+        else:
+            return(rec_buffer)
 
+    def check_if_above_level(self, mic_inputs):
+        """Checks if the dB rms level of the input recording buffer is above
+        threshold. If any of the microphones are above the given level then 
+        recording is initiated. 
+        
+        Inputs:
+            
+            mic_inputs : Nsamples x Nchannels np.array. Data from soundcard
+            
+            level : integer <=0. dB rms ref max . If the input data buffer has an
+                    dB rms >= this value then True will be returned. 
+                    
+        Returns:
+            
+            above_level : Boolean. True if the buffer dB rms is >= the trigger_level
+        """
 
-    def on_press(self,key):
+        dBrms_channel = np.apply_along_axis(self.calc_dBrms, 0, mic_inputs)        
+        above_level = np.any( dBrms_channel >= self.trigger_level)
+        return(above_level)
+        
+    def calc_dBrms(self, one_channel_buffer):
+        """
+        """
+        squared = np.square(one_channel_buffer)
+        mean_squared = np.mean(squared)
+        root_mean_squared = np.sqrt(mean_squared)
+        try:
+            dB_rms = 20.0*np.log10(root_mean_squared)
+        except:
+            dB_rms = -999.
+        return(dB_rms)
 
-        print('button pressed....\n')
-        self.press_count += 1
-
-        if self.press_count == 1:
-            self.recording = True
-            print('recording started')
-
-        elif self.press_count == 2:
-            self.recording = False
-            self.press_count = 0
-            print('recording stopped')
-
-            self.empty_qcontentsintolist()
-
-            self.save_qcontents_aswav()
-
-        pass
 
     def empty_qcontentsintolist(self):
         try:
@@ -293,12 +356,13 @@ if __name__ == '__main__':
 
     dev_name = 'Fireface USB'
     in_out_channels = (24,3)
-    tgt_direcory = 'C:\\Users\\tbeleyur\\Documents\\fieldwork_2018\\actrackdata\\wav\\2018-04-22_001\\'
+    tgt_direcory = 'C:\\Users\\tbeleyur\\Documents\\figuring_out\\fieldrecorder_trigger\\'
 
-
-    a = fieldrecorder(3500, input_output_chs= in_out_channels,
-                              device_name= dev_name, target_dir= tgt_direcory )
+    a = fieldrecorder_trigger(3500, input_output_chs= in_out_channels,
+                              device_name= dev_name, target_dir= tgt_direcory,
+                              trigger_level=-40.0, monitor_channels=[11,12,13],
+                              bandpass_freqs = [18000.0, 56000.0]
+                              )
     fs,rec= a.thermoacousticpy()
-    #plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec[:,7]);plt.ylim(-1,1)
 
 
