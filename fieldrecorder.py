@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+VERSION 0.000
 TODO :
     > fix the default output channel number
 
