@@ -150,11 +150,17 @@ def read_wavfile(fileaddress):
 
 def write_wavfile(input_nparray,fs,intended_name):
 
-    if not input_nparray.dtype == 'float32':
-        input_f32 = np.float32(input_nparray)
-        scipy.io.wavfile.write(intended_name,fs,input_f32)
+    try:
+        if not input_nparray.dtype == 'float32':
+            input_f32 = np.float32(input_nparray)
+            scipy.io.wavfile.write(intended_name,fs,input_f32)
+        else:
+            scipy.io.wavfile.write(intended_name, fs, input_nparray)
+        
+        print('Saved file:'+intended_name)
+    except:
+        print('FAILED to save: '+ intended_name)
 
-    pass
 
 
 def select_channels(channel_list,multichannel_rec):
