@@ -233,9 +233,12 @@ class fieldrecorder_trigger():
                 self.above_level = self.check_if_above_level(self.ref_channels_bp)
                 
                 # if duty cycle recording implemented:
-                self.start_recording = self.minimum_interval_passed(self.S.time,
+                if above_level:
+                    self.start_recording = self.minimum_interval_passed(self.S.time,
                                                                     prev_rectime,
                                                                     self.minimum_interval)
+                else:
+                    self.start_recording = False
                 
                 if self.start_recording:
                     print('starting_recording')
@@ -418,13 +421,13 @@ if __name__ == '__main__':
 
     dev_name = 'Fireface USB'
     in_out_channels = (24,5)
-    #tgt_direcory = 'C:\\Users\\tbeleyur\\Documents\\fieldwork_2018\\actrackdata\\wav\\2018-06-19_001\\'
-    tgt_directory = 'C:\\Users\\tbeleyur\\Desktop\\test\\'
+    tgt_directory = 'C:\\Users\\tbeleyur\\Documents\\fieldwork_2018\\actrackdata\\wav\\2018-06-22_001\\'
+    #tgt_directory = 'C:\\Users\\tbeleyur\\Desktop\\test\\'
 
     a = fieldrecorder_trigger(3500, input_output_chs= in_out_channels,
                               device_name= dev_name, target_dir= tgt_directory,
-                              trigger_level=-38.0, duty_cycle=0.15,
-                              monitor_channels=[0,1,12,13], rec_bout = 15.0,
+                              trigger_level=-1.0, duty_cycle=0.18,
+                              monitor_channels=[0,1,4], rec_bout = 15.0,
                               bandpass_freqs = [20000.0, 60000.0]
                               )
     fs,rec= a.thermoacousticpy()
