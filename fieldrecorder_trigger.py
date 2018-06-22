@@ -100,6 +100,7 @@ class fieldrecorder_trigger():
         self.device_name = device_name
         self.input_output_chs = input_output_chs
         self.target_dir = target_dir
+        self.FFC_interval = 2
         self.fs = 192000
 
         if self.device_name  is None:
@@ -171,16 +172,32 @@ class fieldrecorder_trigger():
         self.sync_signal *= 0.25
 
         trigger_freq = 20*10**3
+        
+        # generate the FFC signal - which is a 20 KHz sine wave
+        ffc_duration = 0.035
+        t_ffc = np.linspace(0,ffc_duration, int(self.fs*ffc_duration))
+        ffc_freq = 20000
+        sine_ffc = np.sin(2*np.pi*ffc_freq*t_ffc)
+        self.ffc_signal = np.float32(np.zeros(self.sync_signal.size))
+        self.ffc_signal[:sine_ffc.size]  = sine_ffc
+                
+        # generate the signals across all channels that will be delivered
 
         # conv to 32 bit so sounddevice can take the signals as inputs
         self.trigger_signal = np.float32(np.sin(2*np.pi*t*trigger_freq))
         self.empty_signal = np.float32(np.zeros(self.sync_signal.size))
 
         self.only_sync = np.column_stack((self.sync_signal, self.empty_signal,
+                                          self.empty_signal, self.empty_signal,
                                           self.empty_signal))
 
         self.trig_and_sync = np.column_stack((self.sync_signal, self.trigger_signal,
-                                                  self.sync_signal))
+                                              self.sync_signal,self.empty_signal,
+                                              self.empty_signal,))
+        
+        self.sync_and_FFC = np.column_stack((self.sync_signal, self.empty_signal,
+                                          self.empty_signal, self.empty_signal,
+                                          self.ffc_signal))
 
 
         self.S = sd.Stream(samplerate=self.fs,blocksize=self.sync_signal.size,
@@ -194,7 +211,9 @@ class fieldrecorder_trigger():
         self.q = Queue.Queue()
 
         self.S.start()
-
+        num_recordings = 0
+        ffc_recnum = -999
+        
         try:
 
             while rec_time < end_time:
@@ -223,8 +242,19 @@ class fieldrecorder_trigger():
                     self.empty_qcontentsintolist()
                     self.save_qcontents_aswav()
                     self.start_recording = False    
+                    num_recordings += 1 
                 else :
+                    
+                    ffc_initiate = np.remainder(num_recordings,
+                                                self.FFC_interval) == 0                    
+                    if ffc_initiate:
+                        # check if FFC has already taken place:
+                        if ffc_recnum != num_recordings:
+                            self.S.write(self.sync_and_FFC)    
+                            ffc_recnum = np.copy(num_recordings)                               
+                
                     self.S.write(self.only_sync)
+            
 
         except (KeyboardInterrupt, SystemExit):
             print('Stopping recording ..exiting ')
@@ -355,13 +385,14 @@ class fieldrecorder_trigger():
 if __name__ == '__main__':
 
     dev_name = 'Fireface USB'
-    in_out_channels = (24,3)
-    tgt_direcory = 'C:\\Users\\tbeleyur\\Documents\\figuring_out\\fieldrecorder_trigger\\'
+    in_out_channels = (24,5)
+    #tgt_direcory = 'C:\\Users\\tbeleyur\\Documents\\fieldwork_2018\\actrackdata\\wav\\2018-06-19_001\\'
+    tgt_directory = 'C:\\Users\\tbeleyur\\Desktop\\test\\'
 
     a = fieldrecorder_trigger(3500, input_output_chs= in_out_channels,
-                              device_name= dev_name, target_dir= tgt_direcory,
-                              trigger_level=-40.0, monitor_channels=[11,12,13],
-                              bandpass_freqs = [18000.0, 56000.0]
+                              device_name= dev_name, target_dir= tgt_directory,
+                              trigger_level=-38.0, monitor_channels=[0,1,12,13],
+                              bandpass_freqs = [1000.0, 96000.0]
                               )
     fs,rec= a.thermoacousticpy()
 
