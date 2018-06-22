@@ -63,7 +63,8 @@ from pynput.keyboard import  Listener
 
 class fieldrecorder_trigger():
 
-    def __init__(self,rec_durn,device_name=None,input_output_chs=(2,2),target_dir = '~\\Desktop\\',**kwargs):
+    def __init__(self,rec_durn, duty_cycle = None, device_name=None,input_output_chs=(2,2),
+                 target_dir = '~\\Desktop\\',**kwargs):
         '''
 
         Inputs:
@@ -102,6 +103,9 @@ class fieldrecorder_trigger():
         self.target_dir = target_dir
         self.FFC_interval = 2
         self.fs = 192000
+        self.duty_cycle = duty_cycle
+
+        
 
         if self.device_name  is None:
             self.tgt_ind = None
@@ -154,6 +158,10 @@ class fieldrecorder_trigger():
         else:
             self.bandpass = False
             
+        if duty_cycle is None:
+            self.minimum_interval = 0
+        else:
+            self.minimum_interval = ((1-duty_cycle)/duty_cycle)*self.rec_bout
             
 
     def thermoacousticpy(self):
@@ -213,6 +221,7 @@ class fieldrecorder_trigger():
         self.S.start()
         num_recordings = 0
         ffc_recnum = -999
+        prev_rectime = 0.0
         
         try:
 
@@ -221,8 +230,13 @@ class fieldrecorder_trigger():
                 self.mic_inputs = self.S.read(self.trig_and_sync.shape[0])
                 self.ref_channels = self.mic_inputs[0][:,self.monitor_channels]
                 self.ref_channels_bp = self.bandpass_sound(self.ref_channels)
-                self.start_recording = self.check_if_above_level(self.ref_channels_bp)
-
+                self.above_level = self.check_if_above_level(self.ref_channels_bp)
+                
+                # if duty cycle recording implemented:
+                self.start_recording = self.minimum_interval_passed(self.S.time,
+                                                                    prev_rectime,
+                                                                    self.minimum_interval)
+                
                 if self.start_recording:
                     print('starting_recording')
                     self.recbout_start_time = np.copy(self.S.time)
@@ -242,7 +256,9 @@ class fieldrecorder_trigger():
                     self.empty_qcontentsintolist()
                     self.save_qcontents_aswav()
                     self.start_recording = False    
+
                     num_recordings += 1 
+                    prev_rectime = np.copy(self.S.time)
                 else :
                     
                     ffc_initiate = np.remainder(num_recordings,
@@ -262,6 +278,22 @@ class fieldrecorder_trigger():
         self.S.stop()
         print('Queue size is',self.q.qsize())
         return(self.fs,self.rec)
+
+    def minimum_interval_passed(self,timenow,last_recordingtime,
+                                minimum_interval):
+        ''' Calculates the time difference between the time at which the threshold
+        is crossed and the last made recording to see if the elapsed time is
+        beyond a minimum interval
+        '''
+        interval = timenow - last_recordingtime
+        if interval < 0 :
+            raise ValueError('Time elapsed cannot be <0!')
+
+        if interval >= minimum_interval:            
+            return(True)
+        else:
+            return(False)
+    
 
     def bandpass_sound(self, rec_buffer):
         """
@@ -391,8 +423,9 @@ if __name__ == '__main__':
 
     a = fieldrecorder_trigger(3500, input_output_chs= in_out_channels,
                               device_name= dev_name, target_dir= tgt_directory,
-                              trigger_level=-38.0, monitor_channels=[0,1,12,13],
-                              bandpass_freqs = [1000.0, 96000.0]
+                              trigger_level=-38.0, duty_cycle=0.15,
+                              monitor_channels=[0,1,12,13], rec_bout = 15.0,
+                              bandpass_freqs = [20000.0, 60000.0]
                               )
     fs,rec= a.thermoacousticpy()
 
