@@ -289,12 +289,12 @@ class fieldrecorder():
 
 
 
-
+n 
 if __name__ == '__main__':
 
     dev_name = 'Fireface USB'
     in_out_channels = (24,3)
-    tgt_direcory = 'C:\\Users\\tbeleyur\\Documents\\AV_common_positions_test\\actrackdata\\wav\\2018-02-15_001\\'
+    tgt_direcory = 'C:\\Users\\tbeleyur\\Documents\\fieldwork_2018\\actrackdata\\wav\\2018-07-25_003\\'
 
 
     a = fieldrecorder(1500, input_output_chs= in_out_channels, device_name= dev_name, target_dir= tgt_direcory )

@@ -233,7 +233,7 @@ class fieldrecorder_trigger():
                 self.above_level = self.check_if_above_level(self.ref_channels_bp)
                 
                 # if duty cycle recording implemented:
-                if above_level:
+                if self.above_level:
                     self.start_recording = self.minimum_interval_passed(self.S.time,
                                                                     prev_rectime,
                                                                     self.minimum_interval)
@@ -410,7 +410,7 @@ class fieldrecorder_trigger():
            ' devices on this computer')
 
         else:
-            self.tgt_ind = int(np.argmax(np.array(self.tgt_dev_bool)))
+            self.tgt_ind = int(np.argmax(3np.array(self.tgt_dev_bool)))
 
 
 
@@ -421,7 +421,7 @@ if __name__ == '__main__':
 
     dev_name = 'Fireface USB'
     in_out_channels = (24,5)
-    tgt_directory = 'C:\\Users\\tbeleyur\\Documents\\fieldwork_2018\\actrackdata\\wav\\2018-06-22_001\\'
+    tgt_directory = 'C:\\Users\\tbeleyur\\Documents\\fieldwork_2018\\actrackdata\\wav\\2018-07-25_002\\'
     #tgt_directory = 'C:\\Users\\tbeleyur\\Desktop\\test\\'
 
     a = fieldrecorder_trigger(3500, input_output_chs= in_out_channels,
