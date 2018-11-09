@@ -286,18 +286,18 @@ class fieldrecorder():
             self.tgt_ind = int(np.argmax(np.array(self.tgt_dev_bool)))
 
 
+  
 
-
-
-n 
 if __name__ == '__main__':
 
     dev_name = 'Fireface USB'
-    in_out_channels = (24,3)
-    tgt_direcory = 'C:\\Users\\tbeleyur\\Documents\\fieldwork_2018\\actrackdata\\wav\\2018-07-25_003\\'
+    in_out_channels = (28,3)
+    tgt_direcory = 'C:\\Users\\tbeleyur\\Documents\\fieldwork_2018_002\\actrackdata\\wav\\2018-08-19_003\\'
+    #tgt_direcory = 'C:\\Users\\tbeleyur\\Documents\\figuring_out\\Uschichka_testing\\Scarlett_ADAT_channels_simultaneous\\'
 
 
-    a = fieldrecorder(1500, input_output_chs= in_out_channels, device_name= dev_name, target_dir= tgt_direcory )
+    a = fieldrecorder(1500, input_output_chs= in_out_channels, device_name= dev_name,
+                      target_dir= tgt_direcory, exclude_channels=[] )
     fs,rec= a.thermoacousticpy()
     #plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec[:,7]);plt.ylim(-1,1)
 
