@@ -333,7 +333,7 @@ def align_channels(multichannel_rec, channel2device,cut_points={'ADC1':0,'ADC2':
 
     # and now make all the channels of the same size + column stack:
     nchannels = multichannel_rec.shape[1]
-    rec_timealigned = np.zeros((lowest_samples,nchannels))
+    rec_timealigned = np.float16(np.zeros((lowest_samples,nchannels)))
 
     for each_device,common_ch in commonstart_ch.items():
 
