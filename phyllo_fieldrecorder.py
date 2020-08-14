@@ -186,7 +186,11 @@ class fieldrecorder_phyllo():
         prefix_filename = 'MULTIWAV_' + self.timestamp+'_'+str(self.idnumber) 
         print('UNIQUE COUNTER NOT IMPLEMENTED YET!!!..................')
         
-        self.unique_number = int(pd.read_csv(self.counter_file)['recording_number'])
+        try:
+            self.unique_number = int(pd.read_csv(self.counter_file, delimiter=',')['recording_number'])
+        except:
+            self.unique_number = int(pd.read_csv(self.counter_file, delimiter=';')['recording_number'])
+        
         final_filename = prefix_filename+'_'+str(self.unique_number)+'.wav'
         return final_filename
     
@@ -287,7 +291,7 @@ if __name__ == '__main__':
 
     channels_to_exclude = [12,13,14,15, 28,29,30,31]
     a = fieldrecorder_phyllo(9000, input_output_chs= in_out_channels, device_name= dev_name,
-                      target_dir= tgt_direcory, exclude_channels=channels_to_exclude,one_recording_duration=3,
+                      target_dir= tgt_direcory, exclude_channels=channels_to_exclude,one_recording_duration=300,
                       one_recording_pm =np.arange(0,0.5,0.05),
                       counter_file='~\\Desktop\\recording_counter.csv')
     fs,rec= a.thermoacousticpy()
