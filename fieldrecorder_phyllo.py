@@ -10,22 +10,24 @@ The output of the recordings need have the following features:
 
 1. Direct disk saving of the data as it is captured from device. 
 2. Recordings are triggered by a keyboard touch, and cannot be stopped until the designated time is over. 
-   All recordings need to be 300 seconds (5 mins) long, +/- a few seconds (few seconds offset on purpose, to allow easy
-   correspondence matching between audio and video files). 5 mins is the default value, and can of course be altered!!! 
+   All recordings need to of a fixed length  +/- some time (few seconds offset on purpose, to allow easy
+   correspondence matching between audio and video files).
 3. Every file will have a unique counter number, with the counter number increasing by 1 per recording - this number is dependent on the 
 computer which is running the whole setup. 
 
 
-@author: Thejasvi Beleyur
+@author: Thejasvi Beleyur, August 2020
+Code released under an MIT License
 """
 import os
 import Queue
 import datetime as dt
 import time
 import numpy as np
+import pandas as pd
 import sounddevice as sd
 from scipy import signal
-import soundfile
+import soundfile as sf
 import matplotlib.pyplot as plt
 plt.rcParams['agg.path.chunksize'] = 10000
 from pynput.keyboard import  Listener
@@ -65,7 +67,11 @@ class fieldrecorder_phyllo():
         self.target_dir = target_dir
         
         self.one_recording_duration = kwargs.get('one_recording_duration',300) # seconds
-        self.one_recording_pm = kwargs.get('one_recording_pm', np.arange(5,0.25)) # the additional range with which all recordings are expected to vary.
+        self.one_recording_pm = kwargs.get('one_recording_pm', np.arange(0,5,0.25)) # the additional range with which all recordings are expected to vary.
+        try:
+            self.counter_file = kwargs['counter_file']
+        except:
+            raise ValueError('The path of the counter file has not been declared!!')
 
         if self.device_name  is None:
             self.tgt_ind = None
@@ -114,7 +120,8 @@ class fieldrecorder_phyllo():
 
 
         self.S = sd.Stream(samplerate=self.fs,blocksize=self.sync_signal.size,
-                           channels=self.input_output_chs,device=self.tgt_ind)
+                           channels=self.input_output_chs,device=self.tgt_ind,
+                           latency='low')
 
         start_time = np.copy(self.S.time)
         session_time = np.copy(self.S.time)
@@ -128,23 +135,27 @@ class fieldrecorder_phyllo():
         kb_input = Listener(on_press=self.on_press)
 
         kb_input.start()
-
+        print('Trying to initiate recordings...')
         try:
 
             while session_time < session_end_time:
-
                 if self.start_recording:
                     audiofilename = self.make_filename()
                     
                     
                     now = time.time() 
                     recording_endtime = now + self.one_recording_duration + float(np.random.choice(self.one_recording_pm,1))
-                    
-                    while time.time() < recording_endtime:
-                        with sf.SoundFile(audiofilename, mode='x', samplerate=self.fs,
-                                                    channels=self.input_output_chs[0]) as file:
-                            file.write(self.S.read(self.trig_and_sync.shape[0]))
+                    print('Approx. end time of recording:', time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(recording_endtime)))
+                    with sf.SoundFile(audiofilename, mode='x', samplerate=self.fs,
+                                                    channels=len(self.save_channels)) as file:
+                        while time.time() < recording_endtime:
+                        
+                            data, success = self.S.read(self.trig_and_sync.shape[0])
+                            file.write(data[:,self.save_channels])
                             self.S.write(self.trig_and_sync)
+                        self.start_recording = False
+                    print('Recording done- press any key to trigger the next recording... \n'+'The saved filename is: ' +  audiofilename)
+                    self.increment_filecounter()
 
                 else :
                     self.S.write(self.only_sync)
@@ -176,17 +187,27 @@ class fieldrecorder_phyllo():
 
         prefix_filename = 'MULTIWAV_' + self.timestamp+'_'+str(self.idnumber) 
         print('UNIQUE COUNTER NOT IMPLEMENTED YET!!!..................')
-        unique_number = '0'
-        final_filename = prefix_filename+'_'+unique_number+'.wav'
+        
+        self.unique_number = int(pd.read_csv(self.counter_file)['recording_number'])
+        final_filename = prefix_filename+'_'+str(self.unique_number)+'.wav'
         return final_filename
+    
+    def increment_filecounter(self):
+        '''
+        Increments filenumber count and saves the data into the counter file. 
+        '''
+        new_df = pd.DataFrame(data={'recording_number':[self.unique_number+1]})
+        new_df.to_csv(self.counter_file)
 
     def on_press(self,key):
 
-        print('button pressed....\n')
-        self.press_count += 1
-
-        if self.press_count == 1:
-            self.recording = True
+        # if a recording has already been initiated then don't do anything
+        if self.start_recording:
+            print('Recording underway - wait till current recording is done!!')
+            pass
+        else:
+            print('button pressed....\n')
+            self.start_recording = True
             print('recording started.....')
 
 
@@ -260,16 +281,16 @@ class fieldrecorder_phyllo():
   
 
 if __name__ == '__main__':
+    print('Starting recording session.....................')
 
-    dev_name = 'Fireface USB'
-    in_out_channels = (28,3)
-    tgt_direcory = 'C:\\Users\\tbeleyur\\Documents\\fieldwork_2018_002\\actrackdata\\wav\\2018-08-19_003\\'
-    #tgt_direcory = 'C:\\Users\\tbeleyur\\Documents\\figuring_out\\Uschichka_testing\\Scarlett_ADAT_channels_simultaneous\\'
+    dev_name = 'ASIO'
+    in_out_channels = (32,3)
+    tgt_direcory = 'C:\\Users\\batmobil\\Documents\\phyllo_expts_july2020\\'
 
-
+    channels_to_exclude = [12,13,14,15, 28,29,30,31]
     a = fieldrecorder_phyllo(9000, input_output_chs= in_out_channels, device_name= dev_name,
-                      target_dir= tgt_direcory, exclude_channels=[],one_recording_duration=3)
+                      target_dir= tgt_direcory, exclude_channels=channels_to_exclude,one_recording_duration=3,
+                      one_recording_pm =np.arange(0,0.5,0.05),
+                      counter_file='~\\Desktop\\recording_counter.csv')
     fs,rec= a.thermoacousticpy()
-    #plt.plot(np.linspace(0,rec.shape[0]/float(fs),rec.shape[0]),rec[:,7]);plt.ylim(-1,1)
-
 
