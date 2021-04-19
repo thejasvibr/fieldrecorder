@@ -65,6 +65,7 @@ class fieldrecorder_trigger():
         self.warmup_durn = kwargs.get('warmup_durn', 20) # seconds
 
         self.num_rests = 0  # num of resting periods
+        self.num_recordings = 0 # num of recording periods
         self.num_triggers =  0 # number off recording triggers
 
         if self.device_name  is None:
@@ -74,9 +75,8 @@ class fieldrecorder_trigger():
 
         self.rec_bout = kwargs.get('rec_bout',10) # seconds
             
-        if duty_cycle is None:
-            self.duty_cycle = kwargs.get('duty_cycle', 0.5)
-            self.rest_bout = ((1-duty_cycle)/duty_cycle)*self.rec_bout
+        self.duty_cycle = kwargs.get('duty_cycle', 0.5)
+        self.rest_bout = ((1-duty_cycle)/duty_cycle)*self.rec_bout
         
         # Prepare the output signals going to the sync and trigger channels 
         one_cycledurn = 1.0/self.sync_freq
@@ -140,7 +140,6 @@ class fieldrecorder_trigger():
                     self.recbout_start_time = np.copy(self.S.time)
                     self.recbout_end_time = self.recbout_start_time + self.rec_bout
                     i = 0
-                    print(self.S.time)
                     while  self.recbout_end_time >= self.S.time:   
                         self.S.write(self.trig_and_sync)
                     self.num_recordings += 1     
@@ -149,7 +148,7 @@ class fieldrecorder_trigger():
                     rest_start_time = np.copy(self.S.time)
                     rest_end_time = rest_start_time + self.rest_bout
                     self.S.write(self.sync_and_FFC)
-                    while self.S.time < end_rest_time:
+                    while self.S.time < rest_end_time:
                         self.S.write(self.only_sync)
                     self.num_rests += 1 
             
@@ -160,11 +159,11 @@ class fieldrecorder_trigger():
         self.S.stop()
 
     def decide_when_to_trigger(self):
-        if num_recordings==num_rests:
+        if self.num_recordings==self.num_rests:
             return False
-        elif num_recordings<num_rests:
+        elif self.num_recordings <self.num_rests:
             return True
-        elif num_recordings>num_rests:
+        elif self.num_recordings >self.num_rests:
             raise Exception('There are more recordings than rests!!!')
 
     def get_device_indexnumber(self,device_name):
@@ -202,8 +201,8 @@ class fieldrecorder_trigger():
 if __name__ == '__main__':
 
     device_name = 'Fireface USB'
-    expt_duration = 0.01 # in hours
-    recording_duration = 15 # in seconds
+    expt_duration = 0.1 # in hours
+    recording_duration = 3 # in seconds
     # When the experiment should start -- remember to account for warm up time 
     # where no recording takes place s
     experiment_start_time = "16 April 2021  22:00"
