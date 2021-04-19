@@ -1,6 +1,12 @@
 """
-Module that triggers short video recordings at a fixed duty cycle until 
-interrupted. 
+Module that triggers short video recordings at a fixed duty cycle until interrupted. 
+
+The session starts with an initial warm up period (default 20s) followed by a cycling between
+1. an FFC and a 'rest' (non-recording period)
+2. recording period 
+3. go to 1.
+
+
 """
 from dateutil import parser
 import os
