@@ -17,11 +17,6 @@ import numpy as np
 import sounddevice as sd
 from scipy import signal
 
-
-duty_cycle = 0.5
-recording_duration = 20 # in seconds
-
-
 # start Output Stream 
 
 # don't record for first 60 seconds or till scheduled start time, and FFC
@@ -86,7 +81,7 @@ class fieldrecorder_trigger():
         
         # Prepare the output signals going to the sync and trigger channels 
         one_cycledurn = 1.0/self.sync_freq
-        num_cycles = 1
+        num_cycles = 2
         sig_durn = num_cycles*one_cycledurn
         t = np.linspace(0,sig_durn,int(self.fs*sig_durn))
         sine_fn = 2*np.pi*self.sync_freq*t + np.pi
@@ -97,7 +92,7 @@ class fieldrecorder_trigger():
         trigger_freq = 20*10**3
         
         # generate the FFC signal - which is a 20 KHz sine wave
-        ffc_duration = 0.035
+        ffc_duration = 0.07
         t_ffc = np.linspace(0,ffc_duration, int(self.fs*ffc_duration))
         ffc_freq = 20000
         sine_ffc = np.sin(2*np.pi*ffc_freq*t_ffc)
@@ -138,7 +133,7 @@ class fieldrecorder_trigger():
         try:
             # Now begin recording in intervals with FFC in between 
             while self.S.time < expt_end_time:
-
+                self.S.write(self.sync_and_FFC)
                 self.start_recording = self.decide_when_to_trigger()
 
                 if self.start_recording:
@@ -153,9 +148,10 @@ class fieldrecorder_trigger():
                     print('resting....')
                     rest_start_time = np.copy(self.S.time)
                     rest_end_time = rest_start_time + self.rest_bout
-                    self.S.write(self.sync_and_FFC)
+                    
                     while self.S.time < rest_end_time:
                         self.S.write(self.only_sync)
+                   
                     self.num_rests += 1 
             
 
@@ -207,20 +203,21 @@ class fieldrecorder_trigger():
 if __name__ == '__main__':
 
     device_name = 'Fireface USB'
-    expt_duration = 0.1 # in hours
-    recording_duration = 3 # in seconds
+    expt_duration = 0.5 # in hours
+    recording_duration = 10 # in seconds
     # When the experiment should start -- remember to account for warm up time 
     # where no recording takes place s
-    experiment_start_time = "16 April 2021  22:00"
+    experiment_start_time = "27 April 2021  14:35"
     experiment_initiation = parser.parse(experiment_start_time)
     
     sleep_expt = fieldrecorder_trigger(expt_durn=expt_duration,
-                                       duty_cycle = 0.5,
+                                       duty_cycle = 0.75,
                                        device_name= device_name, 
                                        rec_bout = recording_duration)
 
     while  dt.datetime.now() < experiment_initiation:
             time.sleep(5.0)
             print('...waiting for experiment start time ....')
-   
+    print(f'The time now is: {dt.datetime.now()}')
     sleep_expt.cameras_rolling()
+    print(f'The time now is: {dt.datetime.now()}')
